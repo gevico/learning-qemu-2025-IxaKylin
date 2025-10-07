@@ -49,7 +49,7 @@ case-inc = $(eval COUNT=$(shell expr $(value COUNT) + 1))
 quiet-@ = $(if $(V),,@$(if $1,printf "  %-8s%3s/%s   %-30s %s\n" \
           "$(strip $1)" "$(COUNT)" $(words $(TEST_CASES)) \
           "$(strip $2)" "$(strip $3)" && ))
-quiet-command = $(call quiet-@,$2,$3,$4)$1 && echo $(COUNT) > result.log
+quiet-command = $(call quiet-@,$2,$3,$4)$1 && echo $(shell expr $(COUNT) \* 10) > result.log
 
 cc-test = $(CC) -Werror $1 -c -o /dev/null -xc /dev/null >/dev/null 2>&1
 cc-option = if $(call cc-test, $1); then \
