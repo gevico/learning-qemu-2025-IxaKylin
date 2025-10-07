@@ -12,6 +12,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   TZ: Asia/Shanghai # 设置时区
+  OUTPUT: build/tests/gevico/tcg/riscv64-softmmu/result.log
+  SUMMARY: build/summary.json
 
 jobs:
   build-test-riscv64:
@@ -76,10 +78,6 @@ jobs:
 
       - name: Generate summary JSON
         run: |
-          # 定义输出文件路径
-          OUTPUT=build/tests/gevico/tcg/riscv64-softmmu/result.log
-          # 定义总结文件路径
-          SUMMARY=build/summary.json
           # 如果 $OUTPUT 为空，不存在该文件，则 total_succeeds为0
           total_succeeds=0
           total_exercations=10
