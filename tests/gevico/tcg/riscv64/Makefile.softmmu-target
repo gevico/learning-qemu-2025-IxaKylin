@@ -28,16 +28,22 @@ define QEMU_OPTS
 -serial stdio \
 -d int \
 -device loader,file=$(2) \
+-blockdev driver=file,filename=disk.img,node-name=flash \
 $(3)
 endef
 
-TEST_CASES := board-g233 insn-dma insn-sort insn-crush insn-expand
+TEST_CASES := board-g233 insn-dma insn-sort insn-crush insn-expand spi-jedec flash-read flash-read-interrupt
+
+# Create shared 2M disk image for all tests
+disk.img:
+	@echo "Creating shared 2M disk image for tests..."; \
+	dd if=/dev/zero of=$@ bs=1M count=2 2>/dev/null
 
 define case_template
 EXTRA_RUNS += run-$(1)
-run-$(1): test-$(1)
+run-$(1): test-$(1) disk.img
 	$(call run-test, $$<, $(QEMU) $(call QEMU_OPTS,g233,$$<), $$<, $(TIMEOUT))
-gdbstub-$(1): test-$(1)
+gdbstub-$(1): test-$(1) disk.img
 	$(call gdbstub-test, $$<, $(QEMU) $(call QEMU_OPTS,g233,$$<, -s -S), $$<, 3600)
 endef
 
