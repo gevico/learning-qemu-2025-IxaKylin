@@ -28,22 +28,28 @@ define QEMU_OPTS
 -serial stdio \
 -d int \
 -device loader,file=$(2) \
--blockdev driver=file,filename=disk.img,node-name=flash \
+-blockdev driver=file,filename=disk0.img,node-name=flash0 \
+-blockdev driver=file,filename=disk1.img,node-name=flash1 \
 $(3)
 endef
 
-TEST_CASES := board-g233 insn-dma insn-sort insn-crush insn-expand spi-jedec flash-read flash-read-interrupt
+TEST_CASES := board-g233 insn-dma insn-sort insn-crush insn-expand spi-jedec flash-read flash-read-interrupt spi-cs
 
-# Create shared 2M disk image for all tests
-disk.img:
-	@echo "Creating shared 2M disk image for tests..."; \
-	dd if=/dev/zero of=$@ bs=1M count=2 2>/dev/null
+# Create shared 2M disk images for all tests
+disk0.img:
+	@echo "Creating shared 2M disk images for tests..."; \
+	dd if=/dev/zero of=$@ bs=1M count=2 2>/dev/null;
+
+# Create shared 4M disk images for all tests
+disk1.img:
+	@echo "Creating shared 4M disk images for tests..."; \
+	dd if=/dev/zero of=$@ bs=1M count=4 2>/dev/null;
 
 define case_template
 EXTRA_RUNS += run-$(1)
-run-$(1): test-$(1) disk.img
+run-$(1): test-$(1) disk0.img disk1.img
 	$(call run-test, $$<, $(QEMU) $(call QEMU_OPTS,g233,$$<), $$<, $(TIMEOUT))
-gdbstub-$(1): test-$(1) disk.img
+gdbstub-$(1): test-$(1) disk0.img disk1.img
 	$(call gdbstub-test, $$<, $(QEMU) $(call QEMU_OPTS,g233,$$<, -s -S), $$<, 3600)
 endef
 
