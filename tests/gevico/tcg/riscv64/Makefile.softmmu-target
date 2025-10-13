@@ -33,7 +33,7 @@ define QEMU_OPTS
 $(3)
 endef
 
-TEST_CASES := board-g233 insn-dma insn-sort insn-crush insn-expand spi-jedec flash-read flash-read-interrupt spi-cs
+TEST_CASES := board-g233 insn-dma insn-sort insn-crush insn-expand spi-jedec flash-read flash-read-interrupt spi-cs spi-overrun
 
 # Create shared 2M disk images for all tests
 disk0.img:
