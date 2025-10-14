@@ -1,4 +1,12 @@
-#include "crt.h"
+/*
+ * Test SPI CS functionality for G233 platform
+ *
+ * Copyright (c) 2025 hongquan.li hongquan.prog@gmail.com
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
+ #include "crt.h"
 
 /* G233 SPI register definitions */
 #define G233_SPI_BASE_ADDR 0x10018000

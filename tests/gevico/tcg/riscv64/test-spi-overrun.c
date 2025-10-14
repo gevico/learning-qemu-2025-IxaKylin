@@ -1,7 +1,7 @@
 /*
- * Test STM32F2XX SPI OVERRUN interrupt detection
+ * Test SPI OVERRUN interrupt detection
  *
- * Copyright (c) 2025 Zevorn(Chao Liu) chao.liu@yeah.net
+ * Copyright (c) 2025 hongquan.li hongquan.prog@gmail.com
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */

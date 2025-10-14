@@ -1,7 +1,7 @@
 /*
- * Test G233 SPI JEDEC ID reading on G233 board
+ * Test SPI CS functionality for G233 platform
  *
- * Copyright (c) 2025 Zevorn(Chao Liu) chao.liu@yeah.net
+ * Copyright (c) 2025 hongquan.li hongquan.prog@gmail.com
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
