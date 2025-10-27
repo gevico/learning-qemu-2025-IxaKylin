@@ -758,14 +758,9 @@ void helper_sort(CPURISCVState *env, target_ulong addr, target_ulong array_num, 
 
 void helper_crush(CPURISCVState *env, target_ulong dst, target_ulong src, target_ulong num) {
     uintptr_t ra = GETPC();
-    
-    /* 获取 MMU 索引 */
     int mmu_idx = riscv_env_mmu_index(env, false);
-    
-    /* 创建内存操作索引 */
     MemOpIdx oi_load = make_memop_idx(MO_UB, mmu_idx);
     MemOpIdx oi_store = make_memop_idx(MO_UB, mmu_idx);
-
     size_t i = 0;
     size_t j = 0;
 
@@ -774,22 +769,34 @@ void helper_crush(CPURISCVState *env, target_ulong dst, target_ulong src, target
         uint8_t curr_byte = cpu_ldb_mmu(env, src + i, oi_load, ra);
         uint8_t next_byte = cpu_ldb_mmu(env, src + i + 1, oi_load, ra);
         
-        /* 提取低4位并打包 */
         uint8_t packed = (curr_byte & 0x0F) | ((next_byte & 0x0F) << 4);
         
-        /* 存储打包后的字节 */
         cpu_stb_mmu(env, dst + j, packed, oi_store, ra);
         
         i += 2;
         j++;
     }
 
-    /* 处理最后一个字节（如果源字节数为奇数） */
     if (i < num) {
         uint8_t curr_byte = cpu_ldb_mmu(env, src + i, oi_load, ra);
         uint8_t packed = curr_byte & 0x0F;
         cpu_stb_mmu(env, dst + j, packed, oi_store, ra);
         j++;
+    }
+}
+
+void helper_expand(CPURISCVState *env, target_ulong dst, target_ulong src, target_ulong num) {
+    uintptr_t ra = GETPC();
+    int mmu_idx = riscv_env_mmu_index(env, false);
+    MemOpIdx oi_load = make_memop_idx(MO_UB, mmu_idx);
+    MemOpIdx oi_store = make_memop_idx(MO_UB, mmu_idx);
+    size_t j = 0;
+    for (size_t i = 0; i < num; i++) {
+        uint8_t origin = cpu_ldb_mmu(env, src + i, oi_load, ra);
+        uint8_t val_front = origin & 0x0F;
+        uint8_t val_rear = (origin >> 4) & 0x0F;
+        cpu_stb_mmu(env, dst + (j++), val_front, oi_store, ra);
+        cpu_stb_mmu(env, dst + (j++), val_rear, oi_store, ra);
     }
 }
 
