@@ -15,3 +15,12 @@ static bool trans_sort(DisasContext *ctx, arg_sort *a)
     gen_helper_sort(tcg_env, addr, array_num, sort_num);
     return true;
 }
+
+static bool trans_crush(DisasContext *ctx, arg_crush *a)
+{
+    TCGv dst = get_gpr(ctx, a->rd, EXT_NONE);
+    TCGv src = get_gpr(ctx, a->rs1, EXT_NONE);
+    TCGv num = get_gpr(ctx, a->rs2, EXT_NONE);
+    gen_helper_crush(tcg_env, dst, src, num);
+    return true;
+}
