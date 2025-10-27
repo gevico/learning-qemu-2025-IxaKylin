@@ -6,3 +6,12 @@ static bool trans_dma(DisasContext *ctx, arg_dma *a)
     gen_helper_dma(tcg_env, dst, src, gran);
     return true;
 }
+
+static bool trans_sort(DisasContext *ctx, arg_sort *a)
+{
+    TCGv addr = get_gpr(ctx, a->rs1, EXT_NONE);
+    TCGv sort_num = get_gpr(ctx, a->rd, EXT_NONE);
+    TCGv array_num = get_gpr(ctx, a->rs2, EXT_NONE);
+    gen_helper_sort(tcg_env, addr, array_num, sort_num);
+    return true;
+}

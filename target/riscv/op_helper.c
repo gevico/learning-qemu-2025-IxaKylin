@@ -723,6 +723,39 @@ void helper_dma(CPURISCVState *env, target_ulong rd, target_ulong rs1, target_ul
 
 }
 
+void helper_sort(CPURISCVState *env, target_ulong addr, target_ulong array_num, target_ulong sn) {
+    uintptr_t ra = GETPC();
+    target_ulong src_ptr = addr;
+    target_ulong sort_num = sn;
+
+        /* 获取 MMU 索引 */
+    int mmu_idx = riscv_env_mmu_index(env, false);
+    
+    /* 创建内存操作索引 */
+    MemOpIdx oi_load = make_memop_idx(MO_TEUL, mmu_idx);
+    MemOpIdx oi_store = make_memop_idx(MO_TEUL, mmu_idx);
+
+    for (int i = 0; i < sort_num - 1; i++) {
+        int swapped = 0;
+        for (int j = 0; j < sort_num - i - 1; j++) {
+            target_ulong curr_addr = src_ptr + (j) * sizeof(uint32_t);
+            target_ulong next_addr = src_ptr + (j + 1) * sizeof(uint32_t);
+
+            uint32_t curr = cpu_ldl_mmu(env, curr_addr, oi_load, ra);
+            uint32_t next = cpu_ldl_mmu(env, next_addr, oi_load, ra);
+
+            if (curr > next) {
+                cpu_stl_mmu(env, curr_addr, next, oi_store, ra);
+                cpu_stl_mmu(env, next_addr, curr, oi_store, ra);
+                swapped = 1;
+            }
+        }
+        if (!swapped) {
+            break;
+        }
+    }
+}
+
 /*
  * TODO: These implementations are not quite correct.  They perform the
  * access using execute permission just fine, but the final PMP check
