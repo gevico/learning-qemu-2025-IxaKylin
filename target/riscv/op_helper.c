@@ -692,6 +692,37 @@ void helper_hyp_hsv_d(CPURISCVState *env, target_ulong addr, target_ulong val)
     cpu_stq_mmu(env, adjust_addr_virt(env, addr), val, oi, ra);
 }
 
+void helper_dma(CPURISCVState *env, target_ulong rd, target_ulong rs1, target_ulong rs2) {
+    uintptr_t ra = GETPC();
+    target_ulong src_ptr = rs1;
+    target_ulong dst_ptr = rd;
+    uint32_t n = 1 << ((uint32_t)rs2 + 3);;
+
+    /* 获取 MMU 索引 */
+    int mmu_idx = riscv_env_mmu_index(env, false);
+    
+    /* 创建内存操作索引 */
+    MemOpIdx oi_load = make_memop_idx(MO_TEUL, mmu_idx);
+    MemOpIdx oi_store = make_memop_idx(MO_TEUL, mmu_idx);
+
+    for (uint32_t i = 0; i < n; i++) {
+        for (uint32_t j = 0; j < n; j++) {
+            /* 计算源地址的偏移 - 按行主序存储，位置[i][j] */
+            target_ulong src_addr = src_ptr + (i * n + j) * sizeof(uint32_t);
+            
+            /* 计算目标地址的偏移 - 转置后位置[j][i] */
+            target_ulong dst_addr = dst_ptr + (j * n + i) * sizeof(uint32_t);
+            
+            /* 从源地址加载数据 */
+            uint32_t data = cpu_ldl_mmu(env, src_addr, oi_load, ra);
+            
+            /* 将数据存储到目标地址 */
+            cpu_stl_mmu(env, dst_addr, data, oi_store, ra);
+        }
+    }
+
+}
+
 /*
  * TODO: These implementations are not quite correct.  They perform the
  * access using execute permission just fine, but the final PMP check

@@ -124,6 +124,7 @@ DEF_HELPER_2(cbo_zero, void, env, tl)
 /* Special functions */
 DEF_HELPER_2(csrr, tl, env, int)
 DEF_HELPER_3(csrw, void, env, int, tl)
+DEF_HELPER_4(dma, void, env, tl, tl, tl)
 DEF_HELPER_4(csrrw, tl, env, int, tl, tl)
 DEF_HELPER_2(csrr_i128, tl, env, int)
 DEF_HELPER_4(csrw_i128, void, env, int, tl, tl)
