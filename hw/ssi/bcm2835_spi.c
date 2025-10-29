@@ -226,7 +226,7 @@ static void bcm2835_spi_realize(DeviceState *dev, Error **errp)
     s->bus = ssi_create_bus(dev, "spi");
 
     memory_region_init_io(&s->iomem, OBJECT(dev), &bcm2835_spi_ops, s,
-                          TYPE_BCM2835_SPI, 0x18);
+                          TYPE_BCM2835_SPI, 0x14);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
 
