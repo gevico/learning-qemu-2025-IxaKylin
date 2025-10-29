@@ -260,7 +260,7 @@ static void g223_spi_realize(DeviceState *dev, Error **errp) {
     s->bus = ssi_create_bus(dev, "spi");
 
     memory_region_init_io(&s->iomem, OBJECT(dev), &g223_spi_ops, s,
-                          TYPE_G223_SPI, 0x14); // load how much register 5 x 32bit = 0x14
+                          TYPE_G223_SPI, 0x1000); // load how much register 5 x 32bit = 0x14
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
 

@@ -63,6 +63,7 @@ static void g233_soc_init(Object *obj)
     object_property_set_int(OBJECT(&s->cpus), "resetvec", 0x1004, &error_abort);
     object_initialize_child(obj, "riscv.gevico.g233.gpio", &s->gpio, TYPE_SIFIVE_GPIO);
     object_initialize_child(obj, "riscv.gevico.g233.spi", &s->spi, TYPE_G223_SPI);
+
 }
 
 static void g233_soc_realize(DeviceState *dev, Error **errp)
@@ -71,6 +72,10 @@ static void g233_soc_realize(DeviceState *dev, Error **errp)
     G233SoCState *s = RISCV_G233_SOC(dev);
     MemoryRegion *sys_mem = get_system_memory();
     const MemMapEntry *memmap = g233_memmap;
+
+    DeviceState *flash_dev;
+    DriveInfo *dinfo;
+    qemu_irq flash_cs;
 
     /* CPUs realize */
     object_property_set_str(OBJECT(&s->cpus), "cpu-type", ms->cpu_type,
@@ -141,6 +146,18 @@ static void g233_soc_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->spi), 0,
                        qdev_get_gpio_in(DEVICE(s->plic), G233_SPI_IRQ));
 
+    /* Connect an SPI flash to SPI0 */
+    flash_dev = qdev_new("w25x16");
+    dinfo = drive_get(IF_MTD, 0, 0);
+    if (dinfo) {
+        qdev_prop_set_drive_err(flash_dev, "drive",
+                                blk_by_legacy_dinfo(dinfo),
+                                &error_fatal);
+    }
+    qdev_realize_and_unref(flash_dev, BUS(s->spi.bus), &error_fatal);
+
+    flash_cs = qdev_get_gpio_in_named(flash_dev, SSI_GPIO_CS, 0);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->spi), 0, flash_cs);
 }
 
 static void g233_soc_class_init(ObjectClass *oc, const void *data)
