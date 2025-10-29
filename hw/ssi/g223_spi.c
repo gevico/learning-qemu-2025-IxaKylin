@@ -29,20 +29,224 @@
 #include "hw/irq.h"
 #include "migration/vmstate.h"
 
-static void g223_spi_update_int(G223SPIState *s)
+#ifndef DEBUG_G223_SPI
+#define DEBUG_G223_SPI 0
+#endif
+
+#define DPRINTF(fmt, args...) \
+    do { \
+        if (DEBUG_G223_SPI) { \
+            fprintf(stderr, "[%s]%s: " fmt , TYPE_G223_SPI, \
+                                             __func__, ##args); \
+        } \
+    } while (0)
+
+static bool g223_spi_is_enabled(G223SPIState *s)
 {
-    int do_interrupt = 0;
-    //todo
+    return s->cr1 & G233_SPI_CR1_SPE;
 }
 
+static bool g223_spi_is_busy(G223SPIState *s)
+{
+    return s->sr & G233_SPI_SR_BUSY;
+}
+
+// static bool g223_spi_is_master(G223SPIState *s)
+// {
+//     return s->cr1 & G233_SPI_CR1_MSTR;
+// }
+
+static bool g223_spi_channel_enabled(G223SPIState *s)
+{
+    uint8_t cs_bits = (s->csctrl >> 4) & 0xf;  /* Bits 4:7 - chip select bits */
+    uint8_t channel_bits = s->csctrl & 0xf;    /* Bits 0:3 - channel enable bits */
+    
+    /* Check if corresponding bits are both set to 1 */
+    return (cs_bits & channel_bits) != 0;
+}
+
+static void g223_spi_update_irq(G223SPIState *s) {
+    int level;
+    
+    if (fifo8_is_empty(&s->rx_fifo)) {
+        s->sr &= ~G233_SPI_SR_RXNE;
+    } else {
+        s->sr |= G233_SPI_SR_RXNE;
+    }
+
+    if (fifo8_is_full(&s->tx_fifo)) {
+        s->sr &= ~G233_SPI_SR_TXE;
+    } else {
+        s->sr |= G233_SPI_SR_TXE;
+    }
+
+    //G233_SPI_SR_OVERRUN and G233_SPI_SR_UNDERRUN not need by auto cleared
+
+    if (s->cr2 & G233_SPI_CR2_SSOE) {
+        level = ( (s->sr & G233_SPI_SR_RXNE)      && (s->cr2 & G233_SPI_CR2_RXNEIE) ) ||
+                ( (s->sr & G233_SPI_SR_TXE)       && (s->cr2 & G233_SPI_CR2_TXEIE)  ) || 
+                ( (s->sr & G233_SPI_SR_UNDERRUN ) && (s->cr2 & G233_SPI_CR2_ERRIE)  ) ||
+                ( (s->sr & G233_SPI_SR_OVERRUN )  && (s->cr2 & G233_SPI_CR2_ERRIE)  ) ? 1 : 0;
+    } else {
+        level = 0;
+    }
+
+    qemu_set_irq(s->irq, level);
+
+    DPRINTF("IRQ level is %d\n", level);
+}
+
+static void g223_spi_txfifo_reset(G223SPIState *s)
+{
+    fifo8_reset(&s->tx_fifo);
+    s->sr |= G233_SPI_SR_TXE;
+}
+
+static void g223_spi_rxfifo_reset(G223SPIState *s)
+{
+    fifo8_reset(&s->rx_fifo);
+    s->sr &= ~G233_SPI_SR_RXNE;
+}
+
+static void g223_spi_flush_tx_fifo(G223SPIState *s)
+{
+    uint8_t tx_byte, rx_byte;
+
+    while (!fifo8_is_empty(&s->tx_fifo) && !fifo8_is_full(&s->rx_fifo)) {
+        tx_byte = fifo8_pop(&s->tx_fifo);
+        rx_byte = ssi_transfer(s->bus, tx_byte);
+        fifo8_push(&s->rx_fifo, rx_byte);
+    }
+}
+
+// static void g223_spi_flush_txfifo(G223SPIState *s)
+// {
+//     DPRINTF("Begin: TX Fifo Size = %d, RX Fifo Size = %d\n",
+//         fifo8_num_used(&s->tx_fifo), fifo8_num_used(&s->rx_fifo));
+
+// }
+
 static uint64_t g223_spi_read(void *opaque, hwaddr addr, unsigned size) {
-    //todo
+    G223SPIState *s = opaque;
+    uint32_t readval = 0;
+
+    switch (addr) {
+        case G233_SPI_CR1:
+            readval = s->cr1 & 0xffffffff;
+            break;
+        case G233_SPI_CR2:
+            readval = s->cr2 & 0xffffffff;
+            break;
+        case G233_SPI_SR:
+            readval = s->sr & 0xffffffff;
+            break;
+        case G233_SPI_DR:
+            if (g223_spi_is_enabled(s) && g223_spi_channel_enabled(s)) {
+                if (!g223_spi_is_busy(s)) {
+                    s->sr |= G233_SPI_SR_BUSY;
+                    readval = fifo8_pop(&s->rx_fifo);
+                    g223_spi_flush_tx_fifo(s);
+                    s->sr &= ~G233_SPI_SR_BUSY;
+                }
+                
+            }
+            break;
+        case G233_SPI_CSCTRL:
+            readval = s->csctrl & 0xffffffff;
+            break;
+        default:
+            qemu_log_mask(LOG_GUEST_ERROR,
+                "%s: Bad offset 0x%" HWADDR_PRIx "\n", __func__, addr);
+    }
+    g223_spi_update_irq(s);
+    return readval;
 }
 
 static void g223_spi_write(void *opaque, hwaddr addr,
                               uint64_t value, unsigned int size)
 {
-    //todo
+    G223SPIState *s = opaque;
+
+    if (g223_spi_is_busy(s)) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: Cannot write while SPI is busy\n", __func__);
+        return;
+    }
+
+    // set busy flag
+    s->sr |= G233_SPI_SR_BUSY;
+    
+    switch (addr) {
+        case G233_SPI_CR1:
+            s->cr1 = (s->cr1 & ~(G233_SPI_CR1_MSTR | G233_SPI_CR1_SPE)) |
+                    (value & (G233_SPI_CR1_MSTR | G233_SPI_CR1_SPE));
+            break;
+        case G233_SPI_CR2:
+            s->cr2 = (s->cr2 & ~(G233_SPI_CR2_SSOE | G233_SPI_CR2_ERRIE | 
+                                G233_SPI_CR2_RXNEIE | G233_SPI_CR2_TXEIE)) |
+                     (value & (G233_SPI_CR2_SSOE | G233_SPI_CR2_ERRIE | 
+                              G233_SPI_CR2_RXNEIE | G233_SPI_CR2_TXEIE));
+            break;
+        case G233_SPI_SR:
+            /* Check if OVERRUN or UNDERRUN bits are being cleared from 1 to 0 */
+            uint32_t old_sr = s->sr;
+            uint32_t new_sr = (old_sr & ~(G233_SPI_SR_OVERRUN | G233_SPI_SR_UNDERRUN)) |
+                             (value & (G233_SPI_SR_OVERRUN | G233_SPI_SR_UNDERRUN));
+            
+            /* If OVERRUN bit is being cleared from 1 to 0, reset TX FIFO */
+            if ((old_sr & G233_SPI_SR_OVERRUN) && !(new_sr & G233_SPI_SR_OVERRUN)) {
+                g223_spi_txfifo_reset(s);
+            }
+            
+            /* If UNDERRUN bit is being cleared from 1 to 0, reset RX FIFO */
+            if ((old_sr & G233_SPI_SR_UNDERRUN) && !(new_sr & G233_SPI_SR_UNDERRUN)) {
+                g223_spi_rxfifo_reset(s);
+            }
+            
+            s->sr = new_sr;
+            break;
+        case G233_SPI_CSCTRL:
+            /* Validate CSCTRL register value */
+            /* Bits 31:8 must be 0 */
+            if (value & 0xffffff00) {
+                qemu_log_mask(LOG_GUEST_ERROR,
+                            "%s: CSCTRL bits 31:8 must be 0, got 0x%08" PRIx64 "\n",
+                            __func__, value);
+                break;
+            }
+            
+            /* Bits 4:7 must have exactly one bit set */
+            uint8_t cs_bits = (value >> 4) & 0xf;
+            if (cs_bits != 0 && (cs_bits & (cs_bits - 1)) != 0) {
+                qemu_log_mask(LOG_GUEST_ERROR,
+                            "%s: CSCTRL bits 4:7 must have exactly one bit set, got 0x%x\n",
+                            __func__, cs_bits);
+                break;
+            }
+            
+            s->csctrl = value & 0xffffffff;
+            break;
+        case G233_SPI_DR:
+            if (g223_spi_is_enabled(s) && g223_spi_channel_enabled(s)) {
+                if (fifo8_is_full(&s->tx_fifo)) {
+                    // TX FIFO full, set OVERRUN flag
+                    s->sr |= G233_SPI_SR_OVERRUN;
+                } else {
+                    fifo8_push(&s->tx_fifo, (uint32_t)value);
+                    
+                }
+                g223_spi_flush_tx_fifo(s);
+            }
+
+            break;
+        default:
+            qemu_log_mask(LOG_GUEST_ERROR,
+                        "%s: Bad offset 0x%" HWADDR_PRIx "\n", __func__, addr);
+    }
+
+    //clear busy flag
+    s->sr &= ~G233_SPI_SR_BUSY;
+    g223_spi_update_irq(s);
 }
 
 static const MemoryRegionOps g223_spi_ops = {
@@ -97,14 +301,15 @@ static void g223_spi_class_init(ObjectClass *klass, const void *data) {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     device_class_set_legacy_reset(dc, g223_spi_reset);
+    dc->realize = g223_spi_realize;
     dc->vmsd = &vmstate_g223_spi;
 }
 
 static const TypeInfo g223_spi_info = {
     .name           = TYPE_G223_SPI,
-    .parent         = TYPE_SIFIVE_SPI,
+    .parent         = TYPE_SYS_BUS_DEVICE,
     .instance_size  = sizeof(G223SPIState),
-    .class_init     = NULL,
+    .class_init     = g223_spi_class_init,
 };
 
 static void g223_spi_register_types(void)

@@ -41,17 +41,19 @@ OBJECT_DECLARE_SIMPLE_TYPE(G223SPIState, G223_SPI)
 
 #define G233_SPI_CR1_MSTR         BIT(2)
 #define G233_SPI_CR1_SPE          BIT(6)
+
 #define G233_SPI_CR2_SSOE         BIT(4)
 #define G233_SPI_CR2_ERRIE        BIT(5)
 #define G233_SPI_CR2_RXNEIE       BIT(6)
 #define G233_SPI_CR2_TXEIE        BIT(7)
+
 #define G233_SPI_SR_RXNE          BIT(0)
 #define G233_SPI_SR_TXE           BIT(1)
 #define G233_SPI_SR_UNDERRUN      BIT(2)
 #define G233_SPI_SR_OVERRUN       BIT(3)
 #define G233_SPI_SR_BUSY          BIT(7)
 
-typedef struct G223SPIState {
+struct G223SPIState {
     /* <private> */
     SysBusDevice parent_obj;
 
@@ -66,8 +68,8 @@ typedef struct G223SPIState {
     uint32_t dr;
     uint32_t csctrl;
 
-    Fifo8 tx_fifo;
     Fifo8 rx_fifo;
-}
+    Fifo8 tx_fifo;
+};
 
 #endif

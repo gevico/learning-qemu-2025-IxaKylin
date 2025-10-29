@@ -44,6 +44,7 @@ static const MemMapEntry g233_memmap[] = {
     [G233_DEV_UART0] =    { 0x10000000,     0x1000 },
     [G233_DEV_GPIO0] =    { 0x10012000,     0x1000 },
     [G233_DEV_PWM0] =     { 0x10015000,     0x1000 },
+    [G233_DEV_SPI] =      { 0x10018000,     0x1000 },
     [G233_DEV_DRAM] =     { 0x80000000, 0x40000000 },
 };
 
@@ -60,10 +61,8 @@ static void g233_soc_init(Object *obj)
     object_property_set_int(OBJECT(&s->cpus), "num-harts", ms->smp.cpus,
                             &error_abort);
     object_property_set_int(OBJECT(&s->cpus), "resetvec", 0x1004, &error_abort);
-    // object_initialize_child(obj, "riscv.gevico.g233.pwm0", &s->pwm0, TYPE_DEVICE);
-    // object_initialize_child(obj, "riscv.gevico.g233.uart0", &s->uart0, TYPE_DEVICE);
     object_initialize_child(obj, "riscv.gevico.g233.gpio", &s->gpio, TYPE_SIFIVE_GPIO);
-
+    object_initialize_child(obj, "riscv.gevico.g233.spi", &s->spi, TYPE_G223_SPI);
 }
 
 static void g233_soc_realize(DeviceState *dev, Error **errp)
@@ -132,6 +131,15 @@ static void g233_soc_realize(DeviceState *dev, Error **errp)
     /* SiFive.PWM0 */
     create_unimplemented_device("riscv.g233.pwm0",
         memmap[G233_DEV_PWM0].base, memmap[G233_DEV_PWM0].size);
+
+    /* SiFive.SPI */
+    sysbus_realize(SYS_BUS_DEVICE(&s->spi), errp);
+    create_unimplemented_device("riscv.g233.spi",
+        memmap[G233_DEV_SPI].base, memmap[G233_DEV_SPI].size);
+
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->spi), 0, memmap[G233_DEV_SPI].base);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->spi), 0,
+                       qdev_get_gpio_in(DEVICE(s->plic), G233_SPI_IRQ));
 
 }
 
