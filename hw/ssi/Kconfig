@@ -33,6 +33,6 @@ config ALLWINNER_A10_SPI
     bool
     select SSI
 
-config G223_SPI
+config G233_SPI
     bool
     select SSI

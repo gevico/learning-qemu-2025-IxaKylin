@@ -19,16 +19,19 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HW_G223_SPI_H
-#define HW_G223_SPI_H
+#ifndef HW_G233_SPI_H
+#define HW_G233_SPI_H
 
 #include "hw/sysbus.h"
 #include "hw/ssi/ssi.h"
 #include "qom/object.h"
 #include "qemu/fifo8.h"
 
-#define TYPE_G223_SPI "g223.spi"
-OBJECT_DECLARE_SIMPLE_TYPE(G223SPIState, G223_SPI)
+
+#define G233_CS_NUM           4
+
+#define TYPE_G233_SPI "g233-spi"
+OBJECT_DECLARE_SIMPLE_TYPE(G233SPIState, G233_SPI)
 
 #define FIFO_SIZE               64
 #define FIFO_SIZE_3_4           48
@@ -53,7 +56,12 @@ OBJECT_DECLARE_SIMPLE_TYPE(G223SPIState, G223_SPI)
 #define G233_SPI_SR_OVERRUN       BIT(3)
 #define G233_SPI_SR_BUSY          BIT(7)
 
-struct G223SPIState {
+#define G233_SPI_CS_EN(x)        ((1 << x) & 0xf)
+#define G233_SPI_CS_ACT(x)       (((1 << x) & 0xf) << 4)
+#define G233_SPI_CS_GET_ACT(x, n)   ((x >> 4) & (1 << n))
+
+
+struct G233SPIState {
     /* <private> */
     SysBusDevice parent_obj;
 
@@ -61,6 +69,9 @@ struct G223SPIState {
     SSIBus *bus;
     MemoryRegion iomem;
     qemu_irq irq;
+
+    uint32_t num_cs;
+    qemu_irq cs_lines[4];
 
     uint32_t cr1;
     uint32_t cr2;
