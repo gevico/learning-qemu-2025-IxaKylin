@@ -173,8 +173,9 @@ static void g233_machine_init(MachineState *machine)
     int i;
     RISCVBootInfo boot_info;
 
-    DeviceState *flash_dev;
-    qemu_irq flash_cs;
+    DeviceState *flash0_dev;
+    //DeviceState *flash_dev_w25x32;
+    qemu_irq flash0_cs;
     DriveInfo *dinfo;
 
 
@@ -217,17 +218,23 @@ static void g233_machine_init(MachineState *machine)
 
     /* Connect an SPI flash to SPI0 */
     dinfo = drive_get(IF_MTD, 0, 0);
-    flash_dev = qdev_new("w25x16");
+    flash0_dev = qdev_new("w25x16");
     if (dinfo) {
-        qdev_prop_set_drive_err(flash_dev, "drive",
+        qdev_prop_set_drive_err(flash0_dev, "drive",
                                 blk_by_legacy_dinfo(dinfo),
                                 &error_fatal);
     }
 
-    qdev_realize_and_unref(flash_dev, BUS(s->soc.spi.bus), &error_fatal);
+    qdev_realize_and_unref(flash0_dev, BUS(s->soc.spi.bus), &error_fatal);
+
+    flash0_cs = qdev_get_gpio_in_named(flash0_dev, SSI_GPIO_CS, 0);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->soc.spi), 1, flash0_cs);
+
     
-    flash_cs = qdev_get_gpio_in_named(flash_dev, SSI_GPIO_CS, 0);
-    sysbus_connect_irq(SYS_BUS_DEVICE(&s->soc.spi), 1, flash_cs);
+    // qdev_realize_and_unref(flash1_dev, BUS(s->soc.spi.bus), &error_fatal);
+    // flash1_cs = qdev_get_gpio_in_named(flash1_dev, SSI_GPIO_CS, 0);
+    // sysbus_connect_irq(SYS_BUS_DEVICE(&s->soc.spi), 2, flash1_cs);
+
 }
 
 static void g233_machine_instance_init(Object *obj)

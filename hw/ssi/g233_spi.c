@@ -46,35 +46,6 @@ static bool g233_spi_is_enabled(G233SPIState *s)
     return s->cr1 & G233_SPI_CR1_SPE;
 }
 
-// static void g233_spi_set_busy(G233SPIState *s, bool busy)
-// {
-//     if (busy) {
-//         s->sr |= G233_SPI_SR_BUSY;
-//     } else {
-//         s->sr &= ~G233_SPI_SR_BUSY;
-//     }
-// }
-
-// static bool g233_spi_is_busy(G233SPIState *s)
-// {
-//     return s->sr & G233_SPI_SR_BUSY;
-// }
-
-// static bool g233_spi_is_master(G233SPIState *s)
-// {
-//     return s->cr1 & G233_SPI_CR1_MSTR;
-// }
-
-// static bool g233_spi_channel_enabled(G233SPIState *s, int channel)
-// {
-//     /* 检查指定通道是否启用且激活 */
-//     if (s->csctrl & (1 << channel)) {
-//         /* 通道启用，检查激活状态 */
-//         return (s->csctrl & (1 << (channel + 4))) != 0;
-//     }
-//     /* 通道禁用 */
-//     return false;
-// }
 
 static inline int get_act_cs(uint32_t csctrl, int cs)
 {
@@ -93,22 +64,26 @@ static void g233_spi_update_cs(G233SPIState* s)
 }
 
 static void g233_spi_update_irq(G233SPIState *s) {
-    int level;
+    int level = 0;
 
-    //G233_SPI_SR_OVERRUN and G233_SPI_SR_UNDERRUN not need by auto cleared
-
-    if (s->cr2 & G233_SPI_CR2_SSOE) {
-        level = ( (s->sr & G233_SPI_SR_RXNE)      && (s->cr2 & G233_SPI_CR2_RXNEIE) ) ||
-                ( (s->sr & G233_SPI_SR_TXE)       && (s->cr2 & G233_SPI_CR2_TXEIE)  ) || 
-                ( (s->sr & G233_SPI_SR_UNDERRUN ) && (s->cr2 & G233_SPI_CR2_ERRIE)  ) ||
-                ( (s->sr & G233_SPI_SR_OVERRUN )  && (s->cr2 & G233_SPI_CR2_ERRIE)  ) ? 1 : 0;
-    } else {
-        level = 0;
+    if ((s->sr & G233_SPI_SR_RXNE) && (s->cr2 & G233_SPI_CR2_RXNEIE)) {
+        level = 1;
     }
 
-    qemu_set_irq(s->irq, level);
+    if ((s->sr & G233_SPI_SR_TXE) && (s->cr2 & G233_SPI_CR2_TXEIE)) {
+        level = 1;
+    }
 
-    DPRINTF("IRQ level is %d\n", level);
+    if (s->sr & G233_SPI_CR2_ERRIE) {
+        if (s->sr & G233_SPI_SR_UNDERRUN) {
+            level = 1;
+        }
+        if (s->sr & G233_SPI_SR_OVERRUN) {
+            level = 1;
+        }
+    }
+    
+    qemu_set_irq(s->irq, level);
 }
 
 static void g233_spi_txfifo_reset(G233SPIState *s)
