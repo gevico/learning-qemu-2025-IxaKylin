@@ -74,7 +74,7 @@ static void g233_spi_update_irq(G233SPIState *s) {
         level = 1;
     }
 
-    if (s->sr & G233_SPI_CR2_ERRIE) {
+    if (s->cr2 & G233_SPI_CR2_ERRIE) {
         if (s->sr & G233_SPI_SR_UNDERRUN) {
             level = 1;
         }
@@ -86,29 +86,22 @@ static void g233_spi_update_irq(G233SPIState *s) {
     qemu_set_irq(s->irq, level);
 }
 
-static void g233_spi_txfifo_reset(G233SPIState *s)
-{
-    fifo8_reset(&s->tx_fifo);
-    s->sr |= G233_SPI_SR_TXE;
-}
-
-static void g233_spi_rxfifo_reset(G233SPIState *s)
-{
-    fifo8_reset(&s->rx_fifo);
-    s->sr &= ~G233_SPI_SR_RXNE;
-}
-
 static void g233_spi_flush_tx_fifo(G233SPIState *s)
 {
-    uint8_t tx_byte, rx_byte;
+    uint8_t tx;
+    uint8_t rx;
 
-    while (!fifo8_is_empty(&s->tx_fifo) && !fifo8_is_full(&s->rx_fifo)) {
-        tx_byte = fifo8_pop(&s->tx_fifo);
-        rx_byte = ssi_transfer(s->bus, tx_byte);
-        fifo8_push(&s->rx_fifo, rx_byte);
+    while (!fifo8_is_empty(&s->tx_fifo)) {
+        tx = fifo8_pop(&s->tx_fifo);
+        rx = ssi_transfer(s->bus, tx);
+
+        if (!fifo8_is_full(&s->rx_fifo)) {
+            fifo8_push(&s->rx_fifo, rx);
+        } else {
+            s->sr |= G233_SPI_SR_OVERRUN;
+        }
     }
 }
-
 static uint64_t g233_spi_read(void *opaque, hwaddr addr, unsigned size) {
     G233SPIState *s = opaque;
     uint32_t readval = 0;
@@ -139,7 +132,7 @@ static uint64_t g233_spi_read(void *opaque, hwaddr addr, unsigned size) {
             if (g233_spi_is_enabled(s)) {
                 if (fifo8_is_empty(&s->rx_fifo)) {
                     // RX FIFO empty, set UNDERRUN flag
-                    s->sr |= G233_SPI_SR_UNDERRUN;
+                    s->sr |= G233_SPI_SR_UNDERRUN; 
                     readval = 0; // 返回默认值
                 } else {
                     readval = fifo8_pop(&s->rx_fifo);
@@ -189,23 +182,18 @@ static void g233_spi_write(void *opaque, hwaddr addr,
             g233_spi_update_irq(s);
             break;
         case G233_SPI_SR:
-            /* Check if OVERRUN or UNDERRUN bits are being cleared from 1 to 0 */
-            uint32_t old_sr = s->sr;
-            uint32_t new_sr = (old_sr & ~(G233_SPI_SR_OVERRUN | G233_SPI_SR_UNDERRUN)) |
-                             (value & (G233_SPI_SR_OVERRUN | G233_SPI_SR_UNDERRUN));
-            
-            /* If OVERRUN bit is being cleared from 1 to 0, reset TX FIFO */
-            if ((old_sr & G233_SPI_SR_OVERRUN) && !(new_sr & G233_SPI_SR_OVERRUN)) {
-                g233_spi_txfifo_reset(s);
+            uint32_t overrun = (value & G233_SPI_SR_OVERRUN) >> 3;
+            uint32_t underrun = (value & G233_SPI_SR_UNDERRUN) >> 2;
+
+            if (overrun == 1) {
+                s->sr &= ~G233_SPI_SR_OVERRUN;
             }
-            
-            /* If UNDERRUN bit is being cleared from 1 to 0, reset RX FIFO */
-            if ((old_sr & G233_SPI_SR_UNDERRUN) && !(new_sr & G233_SPI_SR_UNDERRUN)) {
-                g233_spi_rxfifo_reset(s);
+
+            if (underrun == 1) {
+                s->sr &= ~G233_SPI_SR_UNDERRUN;
             }
-            
-            s->sr = new_sr;
-            g233_spi_update_irq(s);
+
+            //g233_spi_update_irq(s);
             break;
         case G233_SPI_CSCTRL: 
             s->csctrl = value & 0xffffffff;
